@@ -1,0 +1,87 @@
+# Стек лабы 2: фронтенд (nginx) → бэкенд (Flask + gunicorn) → PostgreSQL.
+# Запуск из папки lab-2: docker compose up -d --build
+name: lab2
+
+services:
+  db:
+    image: postgres:16.15-alpine3.24
+    environment:
+      POSTGRES_DB: ${DB_NAME:-todo}
+      POSTGRES_USER: ${DB_USER:-todo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?задайте DB_PASSWORD в lab-2/.env}
+    volumes:
+      # Данные в именованном томе переживают удаление контейнера
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "${DB_CPUS:-2.0}"
+          memory: ${DB_MEMORY:-128m}
+
+  backend:
+    build:
+      context: ..
+      dockerfile: lab-2/backend/Dockerfile
+    image: todo-backend:good
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-todo}
+      DB_USER: ${DB_USER:-todo}
+      DB_PASSWORD: ${DB_PASSWORD:?задайте DB_PASSWORD в lab-2/.env}
+      PORT: "8000"
+      INSTANCE_ID: backend-docker
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+    # Бэкенд стартует только после того, как healthcheck БД стал healthy
+    depends_on:
+      db:
+        condition: service_healthy
+    # Бэкенд единственный, кто подключён к обеим сетям
+    networks:
+      - frontend-net
+      - backend-net
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "${BACKEND_CPUS:-2.0}"
+          memory: ${BACKEND_MEMORY:-128m}
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: lab-2/frontend/Dockerfile
+    image: todo-frontend:good
+    ports:
+      # Наружу опубликован только фронтенд, и только на loopback
+      - "127.0.0.1:${FRONTEND_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - frontend-net
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "${FRONTEND_CPUS:-0.5}"
+          memory: ${FRONTEND_MEMORY:-64m}
+
+networks:
+  # Фронтенд и бэкенд
+  frontend-net:
+  # Бэкенд и БД. internal: у сети нет выхода наружу, а фронтенд в неё не входит
+  backend-net:
+    internal: true
+
+volumes:
+  pgdata:

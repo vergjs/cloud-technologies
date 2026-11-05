@@ -1,0 +1,32 @@
+# Намеренно плохой образ бэкенда. Не используйте его для запуска стека.
+# Собирается из корня репозитория:
+#   docker build -f lab-2/backend/Dockerfile.bad -t todo-backend:bad .
+
+# 1. Плавающий тег и полный образ Python с компиляторами и документацией.
+#    С python:latest (5 ноября 2026 это Python 3.15.2) образ уже не собирается:
+#    psycopg2 2.9.10 не компилируется под новый C API, подробности в REPORT.md.
+#    Тег 3.12 тоже плавающий: патч-версия и Debian под ним меняются без предупреждения.
+FROM python:3.12
+
+# 2. Пароль зашит в образ и виден через docker history и docker inspect
+ENV DB_PASSWORD=supersecret123
+
+# 3. Инструменты отладки и сборки, которые приложению не нужны,
+#    отдельными слоями и без очистки списков пакетов apt
+RUN apt-get update
+RUN apt-get install -y vim curl gcc
+
+# 4. Копируется весь контекст: .git, скриншоты, другие лабы и .env, если он есть.
+#    Файла .dockerignore для этого образа нет.
+# 5. Код копируется до установки зависимостей, поэтому любая правка
+#    кода сбрасывает кеш слоя pip install
+COPY . /app
+WORKDIR /app/lab-0/backend
+RUN pip install -r requirements.txt
+
+# 6. Нет USER: процесс работает от root
+# 7. Нет HEALTHCHECK, Docker не знает, жив ли сервис
+# 8. Shell-форма CMD: PID 1 становится sh, SIGTERM до Python не доходит,
+#    и docker stop по таймауту убивает контейнер через SIGKILL (код 137).
+#    Запуск на dev-сервере Flask.
+CMD python app.py

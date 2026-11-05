@@ -1,0 +1,8 @@
+# Контекст сборки — корень репозитория. BuildKit берёт этот файл вместо
+# корневого .dockerignore, потому что он называется <имя Dockerfile>.dockerignore.
+# Исключаем всё и разрешаем только то, что копирует Dockerfile.
+*
+!lab-0/backend/app.py
+!lab-0/backend/requirements.txt
+!lab-2/backend/requirements.txt
+!lab-2/backend/gunicorn.conf.py
