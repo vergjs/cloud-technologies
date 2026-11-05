@@ -1,0 +1,2 @@
+# Дополнительно к lab-0/backend/requirements.txt: WSGI-сервер для контейнера
+gunicorn==26.2.0
